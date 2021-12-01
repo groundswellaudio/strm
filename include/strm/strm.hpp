@@ -1,9 +1,7 @@
 #ifndef STRM_CPP_LIBRARY_HEADER
 #define STRM_CPP_LIBRARY_HEADER
 
-#include <type_traits>
 #include <utility>
-#include <iostream>
 
 #define STRM_FWD(X) static_cast<decltype(X)&&>(X)
 
@@ -211,7 +209,7 @@ struct integer_matcher {
 				           : ((state_ == 0) ? Self{fail_} : Self{match_});
 	}
 	
-	constexpr bool can_fail() const { return state_ == 0;      }
+	constexpr bool can_fail() const { return state_ == 0; }
 	
 	constexpr char min() const { return '0'; }
 	constexpr char max() const { return '9'; }
@@ -237,74 +235,13 @@ struct case_
 	Result result;
 };
 
-namespace impl {
-	template <class T>
-	struct fn_ {
-		T operator()() { return value; }
-		T value;
-	};
-	
-	template <class T>
-	decltype(auto) fn_wrap ( T v ) {
-		if constexpr ( requires {v();} )
-			return v;
-		else
-			return fn_<T>{static_cast<T&&>(v)};
-	}
-}
-
 template <matcher Matcher, class Result>
 constexpr auto operator >> (Matcher m, Result r)
 {
-	using R = decltype(impl::fn_wrap(r));
-	return case_<Matcher, R>{ m, impl::fn_wrap(r) };
+	return case_<Matcher, Result>{ m, r };
 }
 
 namespace impl {
-	
-	template <class T>
-	void type_()
-	{
-		std::cout << __PRETTY_FUNCTION__ << std::endl;
-	}
-
-	template <unsigned char = 1>
-	struct find_type_i;
-
-	template <>
-	struct find_type_i<1> {
-		template <int Idx, class T, class... Ts>
-		using f = typename find_type_i<(Idx != 1)>::template f<Idx - 1, Ts...>;
-	};
-
-	template <>
-	struct find_type_i<0> {
-		template <int, class T, class... Ts>
-		using f = T;
-	};
-
-	template <int K, class... Ts>
-	using type_pack_element = typename find_type_i<(K != 0)>::template f<K, Ts...>;
-
-	template <class T>
-	struct tag{};
-	
-	// ====================================================================
-
-	template <bool P>
-	struct cond {
-		template <class A, class B>
-		using f = A;
-	};
-
-	template <>
-	struct cond<false> {
-		template <class A, class B>
-		using f = B;
-	};
-
-	template <bool P, class A, class B>
-	using conditional = typename cond<P>::template f<A, B>;
 	
 	// ====================================================================
 	// a simple tuple to store actions
@@ -351,7 +288,7 @@ namespace impl {
 	template <class Action>
 	struct default_case 
 	{ 
-		constexpr decltype(auto) operator()(auto) 
+		constexpr decltype(auto) operator()(auto)
 		{
 			if constexpr ( requires { action(); } )
 				return action();
@@ -500,7 +437,7 @@ namespace impl {
 	// match impl
 	
 	template <class Next, class Prev>
-	auto match_impl_tail(auto& src, auto&& current, auto&& actions)
+	decltype(auto) match_impl_tail(auto& src, auto&& current, auto&& actions)
 	{
 		if constexpr ( Next::action_index != Prev::action_index && Next::can_fail )
 		{
@@ -518,7 +455,6 @@ namespace impl {
 	
 		#define IMPL(N) \
 			using NextList = typename List::template get_next<N>; \
-			type_<NextList>(); \
 			if constexpr ( not NextList::failed ) \
 			{ \
 				++src; \
@@ -538,7 +474,7 @@ namespace impl {
 	
 		if constexpr (Range == 0)
 		{
-			// this case should be common, e.g. when there is only a string matcher left
+			// this case is common, e.g. when there is only a string matcher left
 			if (*src == min)
 			{
 				IMPL( min )
@@ -576,6 +512,15 @@ namespace impl {
 			switch(static_cast<unsigned char>(*src))
 			{
 				REP50( min )
+				default :
+					break;
+			}
+		}
+		else if constexpr (Range + 1 <= 100)
+		{
+			switch(static_cast<unsigned char>(*src))
+			{
+				REP100( min )
 				default :
 					break;
 			}
@@ -642,7 +587,7 @@ constexpr decltype(auto) match(Iter& src, Default&& default_, Cases... cases)
 	 impl::make_matchers_list< typename Cases::matcher... >
 	>
 	(src,
-	 impl::default_case{ impl::fn_wrap(default_) },
+	 impl::default_case{ default_ },
 	 impl::tuple{cases.result...}
 	);
 }
